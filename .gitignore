@@ -1,6 +1,7 @@
 .pio
 .cache
 .dummy
+.claude
 include/secrets.h
 esphome/secrets.yaml
 esphome/.esphome
