@@ -74,14 +74,13 @@ display:
     color_palette: 8BIT
     lambda: |-
       // Source images aren't exactly 4:3, so "resize" letterboxes them
-      // (contain, not cover) - clear first so old pixels don't linger
-      // in the uncovered strip after a toggle.
+      // (contain, not cover) rather than filling the screen. Clear first
+      // so old pixels don't linger, then center whichever image is active.
       it.fill(Color::BLACK);
-      if (id(air_purifier_button).state) {
-        it.image(0, 0, id(on_image));
-      } else {
-        it.image(0, 0, id(off_image));
-      }
+      image::Image *img = id(air_purifier_button).state ? id(on_image) : id(off_image);
+      int x = (it.get_width() - img->get_width()) / 2;
+      int y = (it.get_height() - img->get_height()) / 2;
+      it.image(x, y, img);
 
 touchscreen:
   platform: xpt2046
