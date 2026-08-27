@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ESPmDNS.h>
 #include <PubSubClient.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
@@ -74,30 +75,63 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
 void publishDiscoveryConfig()
 {
     String payload = String("{") +
-                      "\"name\":\"Air Purifier\"," +
-                      "\"unique_id\":\"air_purifier_button\"," +
-                      "\"state_topic\":\"" + MQTT_STATE_TOPIC + "\"," +
-                      "\"command_topic\":\"" + MQTT_COMMAND_TOPIC + "\"," +
-                      "\"availability_topic\":\"" + MQTT_AVAILABILITY_TOPIC + "\"," +
-                      "\"payload_available\":\"online\"," +
-                      "\"payload_not_available\":\"offline\"," +
-                      "\"device\":{\"identifiers\":[\"air_purifier_button\"],"
-                      "\"name\":\"Air Purifier Button\","
-                      "\"manufacturer\":\"JCZN\",\"model\":\"ESP32-2432S028R\"}" +
-                      "}";
+                     "\"name\":\"Air Purifier Button\"," +
+                     "\"unique_id\":\"air_purifier_button\"," +
+                     "\"state_topic\":\"" + MQTT_STATE_TOPIC + "\"," +
+                     "\"command_topic\":\"" + MQTT_COMMAND_TOPIC + "\"," +
+                     "\"availability_topic\":\"" + MQTT_AVAILABILITY_TOPIC + "\"," +
+                     "\"payload_available\":\"online\"," +
+                     "\"payload_not_available\":\"offline\"," +
+                     "\"device\":{\"identifiers\":[\"air_purifier_button\"],"
+                     "\"name\":\"Air Purifier Button\","
+                     "\"manufacturer\":\"JCZN\",\"model\":\"ESP32-2432S028R\"}" +
+                     "}";
 
     mqttClient.publish(MQTT_DISCOVERY_TOPIC, payload.c_str(), true);
+}
+
+// Resolves MQTT_HOST, which may be a plain IP or an mDNS hostname
+// (e.g. "homeassistant.local"). Re-resolved on every connection attempt
+// so a DHCP-reassigned IP behind a stable .local name is picked up.
+IPAddress resolveMqttHost()
+{
+    IPAddress ip;
+    if (ip.fromString(MQTT_HOST))
+    {
+        return ip;
+    }
+
+    String hostname = MQTT_HOST;
+    if (hostname.endsWith(".local"))
+    {
+        hostname.remove(hostname.length() - 6);
+    }
+
+    IPAddress resolved = MDNS.queryHost(hostname);
+    if (resolved == IPAddress(0, 0, 0, 0))
+    {
+        Serial.printf("mDNS lookup for '%s' failed\n", MQTT_HOST);
+    }
+    return resolved;
 }
 
 void connectToMqtt()
 {
     while (!mqttClient.connected())
     {
+        IPAddress mqttHost = resolveMqttHost();
+        if (mqttHost == IPAddress(0, 0, 0, 0))
+        {
+            delay(5000);
+            continue;
+        }
+        mqttClient.setServer(mqttHost, MQTT_PORT);
+
         Serial.print("Connecting to MQTT...");
 
         bool connected = strlen(MQTT_USERNAME) > 0
-            ? mqttClient.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD, MQTT_AVAILABILITY_TOPIC, 0, true, "offline")
-            : mqttClient.connect(MQTT_CLIENT_ID, MQTT_AVAILABILITY_TOPIC, 0, true, "offline");
+                             ? mqttClient.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD, MQTT_AVAILABILITY_TOPIC, 0, true, "offline")
+                             : mqttClient.connect(MQTT_CLIENT_ID, MQTT_AVAILABILITY_TOPIC, 0, true, "offline");
 
         if (connected)
         {
@@ -143,7 +177,11 @@ void setup()
     Serial.print("Connected, IP address: ");
     Serial.println(WiFi.localIP());
 
-    mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+    if (!MDNS.begin("air-purifier-button"))
+    {
+        Serial.println("Error starting mDNS");
+    }
+
     mqttClient.setCallback(onMqttMessage);
     connectToMqtt();
 }
