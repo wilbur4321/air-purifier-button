@@ -1,32 +1,33 @@
 alias: Link Air Purifier Button to smart plug
 description: >
-  Keeps the Air Purifier Button device (switch.air_purifier_button) and the
-  Tuya smart plug actually powering the purifier (switch.air_filter_socket_1)
-  in sync in both directions.
-mode: single
-trigger:
-  - platform: state
-    entity_id: switch.air_purifier_button
+  Keeps the Air Purifier Button device (switch.air_purifier_button) and the Tuya
+  smart plug actually powering the purifier (switch.air_filter_socket_1) in sync
+  in both directions.
+triggers:
+  - entity_id:
+      - switch.air_purifier_button_air_purifier_button
     id: button
-  - platform: state
-    entity_id: switch.air_filter_socket_1
+    trigger: state
+  - entity_id: switch.air_filter_socket_1
     id: plug
-condition:
+    trigger: state
+conditions:
   - condition: template
     value_template: "{{ trigger.to_state.state in ['on', 'off'] }}"
-action:
+actions:
   - choose:
       - conditions:
           - condition: trigger
             id: button
         sequence:
-          - service: "switch.turn_{{ trigger.to_state.state }}"
-            target:
+          - target:
               entity_id: switch.air_filter_socket_1
+            action: switch.turn_{{ trigger.to_state.state }}
       - conditions:
           - condition: trigger
             id: plug
         sequence:
-          - service: "switch.turn_{{ trigger.to_state.state }}"
-            target:
-              entity_id: switch.air_purifier_button
+          - target:
+              entity_id: switch.air_purifier_button_air_purifier_button
+            action: switch.turn_{{ trigger.to_state.state }}
+mode: single
